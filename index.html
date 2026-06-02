@@ -987,13 +987,12 @@ function updateQueueBadge() {
 // SUBMIT
 // ══════════════════════════════════════════════════
 function submitReport() {
-  alert('DEBUG: photo='+!!currentPhotoB64+' damage='+currentDamage+' lat='+currentLat+' lng='+currentLng);
   // Validation with visible alerts on mobile
-  if (!currentPhotoB64) { alert(t('toast_need_photo')); return; }
-  if (!currentDamage) { alert(t('toast_need_damage')); return; }
-  if (!currentLat || !currentLng) { alert(t('toast_need_loc')); return; }
-  if (!document.getElementById('infra-type').value) { alert(t('toast_need_infra')); return; }
-  if (!document.getElementById('crisis-type').value) { alert(t('toast_need_crisis')); return; }
+  if (!currentPhotoB64) { showToast(t('toast_need_photo')); return; }
+  if (!currentDamage) { showToast(t('toast_need_damage')); return; }
+  if (!currentLat || !currentLng) { showToast(t('toast_need_loc')); return; }
+  if (!document.getElementById('infra-type').value) { showToast(t('toast_need_infra')); return; }
+  if (!document.getElementById('crisis-type').value) { showToast(t('toast_need_crisis')); return; }
 
   var report = {
     id: 'RPT-' + Date.now(),
