@@ -1,9 +1,8 @@
 # CrisisMapper — UNDP RAPIDA Community Reporting Tool
 
-**Live Demo:** https://[your-username].github.io/crisis-mapper/
+**Live Demo:** https://dbbun.github.io/crisis-mapper/
 
-A community-facing damage reporting MVP built for the UNDP/Innocentive  
-"Build the Future of Crisis Mapping" challenge (June 2026).  
+A community-facing damage reporting MVP enabling real-time crisis assessment.  
 Powered by **DBbun LLC** — Executable Publication Layer.
 
 ---
@@ -29,13 +28,13 @@ hurricanes, wildfires, conflicts).
 | ⬇️ CSV export | ✅ |
 | 🌐 GeoJSON export (RAPIDA-compatible) | ✅ |
 | 🔢 Report versioning (same-location updates) | ✅ |
-| 🤖 DBbun AI analysis backend (Claude Sonnet) | ✅ demo |
+| 🤖 AI-assisted damage classification via DBbun backend | ✅ |
 
 ---
 
 ## RAPIDA Export Schema
 
-GeoJSON output includes mandatory UNDP fields:
+GeoJSON output includes mandatory fields:
 
 ```json
 {
@@ -67,26 +66,26 @@ Community Reports (GeoJSON/CSV)
         ↓ INGEST
 DBbun document-to-simulator engine
         ↓ DIGEST
-Claude Sonnet AI analysis
+AI-assisted damage analysis
         ↓ SIMULATE
 Synthetic damage datasets + scenario bundles
         ↓ EXPORT
-RAPIDA-compatible outputs for UNDP analysts
+RAPIDA-compatible outputs for analysts
 ```
 
 ---
 
 ## Deployment
 
-### GitHub Pages (recommended)
+### GitHub Pages
+
+No build step. No dependencies. Single HTML file.
 
 ```bash
-git clone https://github.com/[your-username]/crisis-mapper
+git clone https://github.com/DBbun/crisis-mapper
 cd crisis-mapper
 # Enable GitHub Pages in repo Settings → Pages → Deploy from main branch
 ```
-
-No build step. No dependencies. Single HTML file.
 
 ### Local
 
@@ -102,22 +101,14 @@ open index.html
 - **Frontend:** Vanilla HTML/CSS/JS — no framework, no build step
 - **Map:** Leaflet.js + OpenStreetMap
 - **Storage:** Browser localStorage (offline-first)
-- **AI:** Claude Sonnet (claude-sonnet-4-6) via DBbun proxy
+- **AI:** AI-assisted damage classification via DBbun analysis backend
 - **Export:** CSV + GeoJSON (RAPIDA schema)
-- **Languages:** i18n via built-in translation strings
+- **Languages:** Built-in i18n (EN, FR, ES, AR, ZH, RU)
 
 ---
 
 ## License
 
 Open source — MIT License.  
-Built by **DBbun LLC** (Cambridge, MA) for UNDP crisis response.  
+Built by **DBbun LLC** (Cambridge, MA).  
 Contact: dbbun.com
-
----
-
-## Challenge
-
-UNDP / Innocentive — Build the Future of Crisis Mapping  
-Prize: $50,000 USD | Deadline: June 23, 2026  
-Submission by: Uri Kartoun, PhD — DBbun LLC
