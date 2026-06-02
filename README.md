@@ -109,6 +109,9 @@ open index.html
 
 ## License
 
-Open source — MIT License.  
-Built by **DBbun LLC** (Cambridge, MA).  
+© 2026 DBbun LLC. All rights reserved.
+
+This prototype is submitted to the UNDP/Innocentive Crisis Mapping Challenge.
+Source code is made available for evaluation purposes only.
+Any commercial use, redistribution, or deployment requires written consent from DBbun LLC.
 Contact: dbbun.com
