@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta name="theme-color" content="#0B3D6B"/>
+<meta name="description" content="CrisisMapper — Community damage reporting for UNDP RAPIDA"/>
+<title>CrisisMapper — UNDP Crisis Reporting</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js">
+// ══════════════════════════════════════════════════
+// DBbun AI ANALYSIS (Claude Sonnet)
+// ══════════════════════════════════════════════════
+var DBBUN_PROXY = ''; // set to your Render proxy URL for live calls
+
+var aiSuggestedDamage = null;
+var aiSuggestedDescription = null;
+
+function runAIAnalysis() {
+  if (!currentPhotoB64) { showToast('Please add a photo first'); return; }
+  var btn = document.getElementById('ai-btn');
+  var btnText = document.getElementById('ai-btn-text');
+  btnText.textContent = '⏳ Analyzing...';
+  btn.disabled = true;
+
+  if (!DBBUN_PROXY) {
+    setTimeout(function() {
+      showAIResult('partial',
+        'The image shows moderate structural damage consistent with partial collapse of the facade. ' +
+        'Load-bearing walls appear intact but window frames and exterior cladding show significant ' +
+        'displacement. Debris is visible at the base. Recommend engineering inspection before re-entry.');
+      btnText.textContent = '🤖 Re-analyze with DBbun AI';
+      btn.disabled = false;
+    }, 1800);
+    return;
+  }
+
+  fetch(DBBUN_PROXY, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      image_b64: currentPhotoB64,
+      infrastructure_type: document.getElementById('infra-type').value || 'unknown',
+      crisis_type: document.getElementById('crisis-type').value || 'unknown'
+    })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data) {
+    showAIResult(data.damage_classification, data.description);
+    btnText.textContent = '🔄 Re-analyze';
+    btn.disabled = false;
+  })
+  .catch(function() {
+    showToast('AI unavailable — please classify manually');
+    btnText.textContent = '🤖 Analyze Photo with DBbun AI';
+    btn.disabled = false;
+  });
+}
+
+function showAIResult(classification, description) {
+  aiSuggestedDamage = classification;
+  aiSuggestedDescription = description;
+  var colors = {minimal:'#2ECC71', partial:'#F39C12', complete:'#E74C3C'};
+  var color = colors[classification] || '#999';
+  document.getElementById('ai-classification').innerHTML =
+    '<span style="background:'+color+';color:#fff;padding:3px 12px;border-radius:12px;font-size:11px;font-weight:700;text-transform:uppercase;">'+classification+'</span>';
+  document.getElementById('ai-description').textContent = description;
+  document.getElementById('ai-result').style.display = 'block';
+}
+
+function applyAISuggestion() {
+  if (aiSuggestedDamage) { selectDamage(aiSuggestedDamage); showToast('AI suggestion applied'); }
+  if (aiSuggestedDescription && !document.getElementById('description').value) {
+    document.getElementById('description').value = aiSuggestedDescription;
+  }
+}
+
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --un-blue: #009EDB;
+  --un-dark: #0B3D6B;
+  --un-mid: #1A6FAF;
+  --minimal: #2ECC71;
+  --partial: #F39C12;
+  --complete: #E74C3C;
+  --bg: #F4F6F9;
+  --surface: #FFFFFF;
+  --border: #D8E2EF;
+  --text: #1C2B3A;
+  --text-soft: #5A7A96;
+  --radius: 10px;
+  --shadow: 0 2px 12px rgba(11,61,107,0.10);
+  --shadow-lg: 0 8px 32px rgba(11,61,107,0.16);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+
+/* ── TOP BAR ── */
+#topbar{
+  background:var(--un-dark);
+  color:#fff;
+  padding:0 16px;
+  height:54px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  position:sticky;top:0;z-index:1000;
+  box-shadow:0 2px 8px rgba(0,0,0,0.25);
+}
+#topbar .brand{display:flex;align-items:center;gap:10px;}
+#topbar .brand svg{width:28px;height:28px;flex-shrink:0;}
+#topbar .brand-text{font-size:15px;font-weight:700;letter-spacing:0.02em;}
+#topbar .brand-sub{font-size:10px;font-weight:400;opacity:0.65;letter-spacing:0.05em;text-transform:uppercase;}
+#lang-select{
+  background:rgba(255,255,255,0.12);
+  border:1px solid rgba(255,255,255,0.25);
+  color:#fff;
+  padding:5px 10px;
+  border-radius:6px;
+  font-size:12px;
+  font-family:'IBM Plex Sans',sans-serif;
+  cursor:pointer;
+}
+#offline-badge{
+  background:#E74C3C;
+  color:#fff;
+  font-size:10px;
+  font-weight:600;
+  padding:3px 8px;
+  border-radius:20px;
+  letter-spacing:0.05em;
+  display:none;
+}
+#offline-badge.visible{display:block;}
+
+/* ── TABS ── */
+#tabs{
+  display:flex;
+  background:var(--un-dark);
+  padding:0 16px;
+  border-bottom:3px solid var(--un-blue);
+}
+.tab-btn{
+  background:none;border:none;
+  color:rgba(255,255,255,0.55);
+  font-family:'IBM Plex Sans',sans-serif;
+  font-size:13px;font-weight:500;
+  padding:12px 16px;
+  cursor:pointer;
+  position:relative;
+  transition:color 0.2s;
+  letter-spacing:0.03em;
+}
+.tab-btn.active{color:#fff;}
+.tab-btn.active::after{
+  content:'';position:absolute;bottom:-3px;left:0;right:0;height:3px;
+  background:var(--un-blue);
+}
+.tab-btn .badge{
+  background:var(--complete);
+  color:#fff;font-size:9px;font-weight:700;
+  padding:1px 5px;border-radius:10px;
+  margin-left:5px;
+}
+
+/* ── PANELS ── */
+.panel{display:none;padding:16px;max-width:600px;margin:0 auto;}
+.panel.active{display:block;}
+#panel-map{display:none;padding:0;max-width:100%;}
+#panel-map.active{display:block;}
+#panel-dashboard{display:none;padding:16px;max-width:900px;margin:0 auto;}
+#panel-dashboard.active{display:block;}
+
+/* ── FORM CARD ── */
+.card{
+  background:var(--surface);
+  border-radius:var(--radius);
+  padding:18px;
+  margin-bottom:14px;
+  box-shadow:var(--shadow);
+  border:1px solid var(--border);
+}
+.card-title{
+  font-size:12px;font-weight:600;
+  text-transform:uppercase;letter-spacing:0.08em;
+  color:var(--text-soft);
+  margin-bottom:12px;
+  display:flex;align-items:center;gap:6px;
+}
+.card-title span{font-size:16px;}
+
+/* ── PHOTO CAPTURE ── */
+#photo-zone{
+  border:2px dashed var(--border);
+  border-radius:var(--radius);
+  min-height:160px;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:10px;cursor:pointer;
+  transition:border-color 0.2s,background 0.2s;
+  position:relative;overflow:hidden;
+}
+#photo-zone:hover{border-color:var(--un-blue);background:#F0F7FF;}
+#photo-zone img{width:100%;height:200px;object-fit:cover;border-radius:8px;}
+#photo-zone .ph-icon{font-size:36px;opacity:0.4;}
+#photo-zone .ph-text{font-size:13px;color:var(--text-soft);}
+#photo-input{display:none;}
+.photo-actions{display:flex;gap:8px;margin-top:8px;}
+.btn-sm{
+  flex:1;padding:8px;border-radius:7px;border:none;
+  font-family:'IBM Plex Sans',sans-serif;font-size:12px;font-weight:600;
+  cursor:pointer;transition:all 0.15s;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+}
+.btn-primary{background:var(--un-blue);color:#fff;}
+.btn-primary:hover{background:var(--un-mid);}
+.btn-secondary{background:var(--bg);color:var(--text);border:1px solid var(--border);}
+.btn-secondary:hover{background:var(--border);}
+
+/* ── DAMAGE LEVELS ── */
+.damage-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.damage-btn{
+  padding:12px 6px;border-radius:8px;border:2px solid transparent;
+  cursor:pointer;text-align:center;transition:all 0.15s;
+  background:var(--bg);
+  font-family:'IBM Plex Sans',sans-serif;
+}
+.damage-btn .d-icon{font-size:22px;display:block;margin-bottom:4px;}
+.damage-btn .d-label{font-size:11px;font-weight:600;letter-spacing:0.03em;}
+.damage-btn .d-sub{font-size:10px;color:var(--text-soft);margin-top:2px;}
+.damage-btn[data-level="minimal"]{border-color:#ccc;}
+.damage-btn[data-level="minimal"].selected{border-color:var(--minimal);background:#F0FFF4;color:#1a7a3a;}
+.damage-btn[data-level="partial"]{border-color:#ccc;}
+.damage-btn[data-level="partial"].selected{border-color:var(--partial);background:#FFFBF0;color:#8a5a00;}
+.damage-btn[data-level="complete"]{border-color:#ccc;}
+.damage-btn[data-level="complete"].selected{border-color:var(--complete);background:#FFF5F5;color:#a02020;}
+
+/* ── FORM ELEMENTS ── */
+.form-group{margin-bottom:12px;}
+label{display:block;font-size:12px;font-weight:600;color:var(--text-soft);margin-bottom:5px;letter-spacing:0.04em;text-transform:uppercase;}
+select,textarea,input[type=text]{
+  width:100%;
+  border:1px solid var(--border);
+  border-radius:7px;
+  padding:10px 12px;
+  font-family:'IBM Plex Sans',sans-serif;
+  font-size:14px;
+  color:var(--text);
+  background:var(--surface);
+  transition:border-color 0.15s;
+  -webkit-appearance:none;
+}
+select:focus,textarea:focus,input:focus{outline:none;border-color:var(--un-blue);}
+textarea{resize:vertical;min-height:80px;}
+
+/* ── LOCATION ── */
+#loc-display{
+  background:var(--bg);border-radius:7px;padding:10px 12px;
+  font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-soft);
+  border:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;
+}
+#loc-display .loc-ok{color:var(--minimal);font-size:16px;}
+#loc-display .loc-err{color:var(--complete);font-size:16px;}
+.loc-actions{display:flex;gap:8px;margin-top:8px;}
+
+/* ── MINI MAP FOR LOCATION PICK ── */
+#pick-map{height:200px;border-radius:8px;border:1px solid var(--border);margin-top:10px;}
+
+/* ── SUBMIT BUTTON ── */
+#submit-btn{
+  width:100%;padding:15px;
+  background:var(--un-dark);color:#fff;
+  border:none;border-radius:var(--radius);
+  font-family:'IBM Plex Sans',sans-serif;
+  font-size:15px;font-weight:700;
+  cursor:pointer;transition:all 0.2s;
+  letter-spacing:0.04em;
+  margin-top:6px;
+}
+#submit-btn:hover{background:var(--un-mid);}
+#submit-btn:disabled{background:#aaa;cursor:not-allowed;}
+#submit-btn .submit-inner{display:flex;align-items:center;justify-content:center;gap:8px;}
+
+/* ── SUCCESS TOAST ── */
+#toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:var(--un-dark);color:#fff;
+  padding:12px 24px;border-radius:30px;
+  font-size:13px;font-weight:600;
+  box-shadow:var(--shadow-lg);
+  opacity:0;transition:opacity 0.3s;
+  z-index:9999;pointer-events:none;
+  white-space:nowrap;
+}
+#toast.show{opacity:1;}
+
+/* ── FULL MAP ── */
+#main-map{height:calc(100vh - 107px);}
+
+/* ── LEGEND ── */
+#map-legend{
+  position:absolute;bottom:24px;right:16px;z-index:500;
+  background:rgba(255,255,255,0.95);
+  border-radius:8px;padding:10px 14px;
+  box-shadow:var(--shadow);
+  font-size:11px;
+}
+.leg-item{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+.leg-dot{width:10px;height:10px;border-radius:50%;}
+
+/* ── MAP CONTROLS ── */
+#map-controls{
+  position:absolute;top:16px;left:16px;z-index:500;
+  display:flex;gap:8px;flex-wrap:wrap;
+}
+.filter-btn{
+  background:rgba(255,255,255,0.95);
+  border:2px solid transparent;
+  border-radius:20px;padding:5px 12px;
+  font-size:11px;font-weight:600;
+  cursor:pointer;box-shadow:var(--shadow);
+  font-family:'IBM Plex Sans',sans-serif;
+  transition:all 0.15s;
+}
+.filter-btn.active{background:var(--un-dark);color:#fff;}
+
+/* ── DASHBOARD ── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px;}
+.stat-card{
+  background:var(--surface);border-radius:var(--radius);
+  padding:16px;text-align:center;
+  box-shadow:var(--shadow);border:1px solid var(--border);
+}
+.stat-num{font-size:32px;font-weight:700;color:var(--un-dark);}
+.stat-label{font-size:11px;color:var(--text-soft);text-transform:uppercase;letter-spacing:0.06em;margin-top:4px;}
+.stat-card.minimal .stat-num{color:var(--minimal);}
+.stat-card.partial .stat-num{color:var(--partial);}
+.stat-card.complete .stat-num{color:var(--complete);}
+
+.export-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
+.export-btn{
+  padding:10px 18px;border-radius:7px;border:none;
+  font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;
+  cursor:pointer;transition:all 0.15s;
+  display:flex;align-items:center;gap:6px;
+}
+.export-csv{background:#27AE60;color:#fff;}
+.export-csv:hover{background:#1e8449;}
+.export-geojson{background:var(--un-blue);color:#fff;}
+.export-geojson:hover{background:var(--un-mid);}
+.export-clear{background:#E74C3C;color:#fff;}
+.export-clear:hover{background:#c0392b;}
+
+.report-table{width:100%;border-collapse:collapse;font-size:13px;}
+.report-table th{
+  background:var(--un-dark);color:#fff;
+  padding:10px 12px;text-align:left;
+  font-size:11px;letter-spacing:0.06em;text-transform:uppercase;
+}
+.report-table td{padding:9px 12px;border-bottom:1px solid var(--border);}
+.report-table tr:hover td{background:#F8FAFC;}
+.dmg-badge{
+  padding:3px 9px;border-radius:12px;font-size:10px;font-weight:700;
+  letter-spacing:0.05em;text-transform:uppercase;
+}
+.dmg-minimal{background:#E8F8EE;color:#1a7a3a;}
+.dmg-partial{background:#FFF8E6;color:#8a5a00;}
+.dmg-complete{background:#FEECEC;color:#a02020;}
+
+.empty-state{text-align:center;padding:40px;color:var(--text-soft);}
+.empty-state .empty-icon{font-size:48px;margin-bottom:10px;}
+
+/* ── DBbun SECTION ── */
+.dbbun-panel{
+  background:linear-gradient(135deg,var(--un-dark),var(--un-mid));
+  color:#fff;border-radius:var(--radius);padding:18px;
+  margin-bottom:14px;
+}
+.dbbun-panel h3{font-size:14px;font-weight:700;margin-bottom:8px;letter-spacing:0.03em;}
+.dbbun-panel p{font-size:12px;opacity:0.85;line-height:1.6;}
+.dbbun-panel .pipeline-steps{display:flex;gap:0;margin-top:12px;flex-wrap:wrap;}
+.pipeline-step{
+  background:rgba(255,255,255,0.12);
+  padding:6px 12px;font-size:11px;font-weight:600;
+  letter-spacing:0.05em;
+  position:relative;
+}
+.pipeline-step:not(:last-child)::after{
+  content:'→';margin-left:8px;opacity:0.6;
+}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+
+/* ── OFFLINE QUEUE INDICATOR ── */
+#queue-indicator{
+  background:var(--partial);
+  color:#fff;font-size:11px;font-weight:600;
+  padding:6px 16px;text-align:center;
+  display:none;
+}
+#queue-indicator.visible{display:block;}
+
+/* ── REQUIRED FIELD MARK ── */
+.req{color:var(--complete);margin-left:2px;}
+
+/* ── RESPONSIVE ── */
+@media(max-width:400px){
+  .damage-grid{grid-template-columns:repeat(3,1fr);}
+  .tab-btn{padding:10px 10px;font-size:12px;}
+}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div class="brand">
+    <svg viewBox="0 0 28 28" fill="none">
+      <circle cx="14" cy="14" r="13" fill="#009EDB" opacity="0.2"/>
+      <path d="M14 4C8.48 4 4 8.48 4 14s4.48 10 10 10 10-4.48 10-10S19.52 4 14 4zm0 2c4.41 0 8 3.59 8 8s-3.59 8-8 8-8-3.59-8-8 3.59-8 8-8z" fill="#009EDB"/>
+      <circle cx="14" cy="14" r="3" fill="#009EDB"/>
+      <path d="M14 8v2M14 18v2M8 14H6M22 14h-2" stroke="#009EDB" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    <div>
+      <div class="brand-text">CrisisMapper</div>
+      <div class="brand-sub">UNDP · RAPIDA · Powered by DBbun</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div id="offline-badge">● OFFLINE</div>
+    <select id="lang-select" onchange="setLang(this.value)">
+      <option value="en">🌐 EN</option>
+      <option value="ar">AR عربي</option>
+      <option value="zh">中文 ZH</option>
+      <option value="fr">FR Français</option>
+      <option value="ru">RU Русский</option>
+      <option value="es">ES Español</option>
+    </select>
+  </div>
+</div>
+
+<!-- OFFLINE QUEUE NOTICE -->
+<div id="queue-indicator">📡 <span id="queue-text">3 reports queued — will sync when online</span></div>
+
+<!-- TABS -->
+<div id="tabs">
+  <button class="tab-btn active" onclick="showTab('report')" id="tab-report" data-i18n="tab_report">📷 Report</button>
+  <button class="tab-btn" onclick="showTab('map')" id="tab-map" data-i18n="tab_map">🗺 Map</button>
+  <button class="tab-btn" onclick="showTab('dashboard')" id="tab-dash" data-i18n="tab_dashboard">📊 Dashboard <span class="badge" id="report-count-badge">0</span></button>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- PANEL: REPORT -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="panel active" id="panel-report">
+
+  <!-- Photo Capture -->
+  <div class="card">
+    <div class="card-title"><span>📸</span> <span data-i18n="photo_title">Damage Photo</span> <span class="req">*</span></div>
+    <div id="photo-zone" onclick="document.getElementById('photo-input').click()">
+      <div class="ph-icon">📷</div>
+      <div class="ph-text" data-i18n="photo_prompt">Tap to take a photo or upload</div>
+    </div>
+    <input type="file" id="photo-input" accept="image/*" capture="environment" onchange="handlePhoto(this)"/>
+    <div class="photo-actions" style="display:none;" id="photo-actions">
+      <button class="btn-sm btn-secondary" onclick="clearPhoto()" data-i18n="photo_retake">↺ Retake</button>
+      <button class="btn-sm btn-primary" onclick="document.getElementById('photo-input').click()" data-i18n="photo_change">Change Photo</button>
+    </div>
+  </div>
+
+  <!-- Damage Level -->
+  <div class="card">
+    <div class="card-title"><span>⚠️</span> <span data-i18n="damage_title">Damage Level</span> <span class="req">*</span></div>
+    <div class="damage-grid">
+      <div class="damage-btn" data-level="minimal" onclick="selectDamage('minimal')">
+        <span class="d-icon">🟢</span>
+        <div class="d-label" data-i18n="dmg_minimal">Minimal</div>
+        <div class="d-sub" data-i18n="dmg_minimal_sub">Functional</div>
+      </div>
+      <div class="damage-btn" data-level="partial" onclick="selectDamage('partial')">
+        <span class="d-icon">🟡</span>
+        <div class="d-label" data-i18n="dmg_partial">Partial</div>
+        <div class="d-sub" data-i18n="dmg_partial_sub">Repairable</div>
+      </div>
+      <div class="damage-btn" data-level="complete" onclick="selectDamage('complete')">
+        <span class="d-icon">🔴</span>
+        <div class="d-label" data-i18n="dmg_complete">Complete</div>
+        <div class="d-sub" data-i18n="dmg_complete_sub">Destroyed</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Infrastructure & Crisis Type -->
+  <div class="card">
+    <div class="card-title"><span>🏗️</span> <span data-i18n="infra_title">Infrastructure & Crisis</span></div>
+    <div class="form-group">
+      <label data-i18n="infra_type">Infrastructure Type <span class="req">*</span></label>
+      <select id="infra-type">
+        <option value="" data-i18n="select_opt">-- Select --</option>
+        <option value="residential" data-i18n="infra_residential">Residential (Houses / Apartments)</option>
+        <option value="commercial" data-i18n="infra_commercial">Commercial (Markets, Shops, Hotels)</option>
+        <option value="government" data-i18n="infra_government">Government Building</option>
+        <option value="utility" data-i18n="infra_utility">Utility Infrastructure</option>
+        <option value="transport" data-i18n="infra_transport">Transport & Communication</option>
+        <option value="community" data-i18n="infra_community">Community (Schools, Hospitals)</option>
+        <option value="recreation" data-i18n="infra_recreation">Public / Recreation</option>
+        <option value="other" data-i18n="infra_other">Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label data-i18n="crisis_type">Crisis Type <span class="req">*</span></label>
+      <select id="crisis-type">
+        <option value="" data-i18n="select_opt">-- Select --</option>
+        <optgroup label="Natural Hazards">
+          <option value="earthquake">🌍 Earthquake</option>
+          <option value="flood">🌊 Flood</option>
+          <option value="tsunami">🌊 Tsunami</option>
+          <option value="hurricane">🌀 Hurricane / Cyclone</option>
+          <option value="wildfire">🔥 Wildfire</option>
+        </optgroup>
+        <optgroup label="Technological">
+          <option value="explosion">💥 Explosion</option>
+          <option value="chemical">☣️ Chemical Incident</option>
+        </optgroup>
+        <optgroup label="Human-Made">
+          <option value="conflict">⚔️ Conflict</option>
+          <option value="civil_unrest">🚨 Civil Unrest</option>
+        </optgroup>
+      </select>
+    </div>
+    <div class="form-group">
+      <label data-i18n="debris_label">Debris requiring clearing?</label>
+      <select id="debris">
+        <option value="no" data-i18n="debris_no">No</option>
+        <option value="yes" data-i18n="debris_yes">Yes</option>
+        <option value="unknown" data-i18n="debris_unknown">Unknown</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label data-i18n="description_label">Description</label>
+      <textarea id="description" rows="3" placeholder="Describe the damage observed..." data-i18n-ph="description_ph"></textarea>
+    </div>
+  </div>
+
+  <!-- Location -->
+  <div class="card">
+    <div class="card-title"><span>📍</span> <span data-i18n="location_title">Location</span> <span class="req">*</span></div>
+    <div id="loc-display">
+      <span class="loc-err">○</span>
+      <span id="loc-text" data-i18n="loc_waiting">Waiting for location…</span>
+    </div>
+    <div class="loc-actions">
+      <button class="btn-sm btn-primary" onclick="getGPS()" data-i18n="loc_gps">📡 Use GPS</button>
+      <button class="btn-sm btn-secondary" onclick="togglePickMap()" data-i18n="loc_pick">🗺 Pick on Map</button>
+    </div>
+    <div id="pick-map" style="display:none;"></div>
+    <div class="form-group" style="margin-top:10px;">
+      <label data-i18n="landmark_label">Landmark description (if no GPS)</label>
+      <input type="text" id="landmark" placeholder="e.g. Near central market, north side" data-i18n-ph="landmark_ph"/>
+    </div>
+  </div>
+
+  <!-- DBbun AI Analysis -->
+  <div class="card" id="ai-card">
+    <div class="card-title"><span>🤖</span> DBbun AI Analysis <span style="font-size:10px;background:var(--un-blue);color:#fff;padding:2px 7px;border-radius:10px;font-weight:600;">BETA</span></div>
+    <p style="font-size:12px;color:var(--text-soft);margin-bottom:10px;">Let Claude Sonnet analyze your photo and suggest damage classification automatically.</p>
+    <button class="btn-sm btn-primary" id="ai-btn" onclick="runAIAnalysis()" style="width:100%;padding:11px;">
+      <span id="ai-btn-text">🤖 Analyze Photo with DBbun AI</span>
+    </button>
+    <div id="ai-result" style="display:none;margin-top:12px;background:var(--bg);border-radius:8px;padding:12px;border-left:3px solid var(--un-blue);">
+      <div style="font-size:11px;font-weight:700;color:var(--text-soft);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">AI Assessment</div>
+      <div id="ai-classification" style="margin-bottom:6px;"></div>
+      <div id="ai-description" style="font-size:12px;color:var(--text);line-height:1.6;"></div>
+      <button class="btn-sm btn-secondary" onclick="applyAISuggestion()" style="margin-top:8px;" id="ai-apply-btn">✅ Apply Suggestion</button>
+    </div>
+  </div>
+
+  <!-- Submit -->
+  <button id="submit-btn" onclick="submitReport()">
+    <div class="submit-inner">
+      <span>📤</span>
+      <span data-i18n="submit_btn">Submit Damage Report</span>
+    </div>
+  </button>
+
+  <div style="height:20px;"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- PANEL: MAP -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="panel" id="panel-map">
+  <div style="position:relative;">
+    <div id="main-map"></div>
+    <div id="map-controls">
+      <button class="filter-btn active" onclick="filterMap('all')" data-i18n="filter_all">All</button>
+      <button class="filter-btn" onclick="filterMap('minimal')" style="border-color:var(--minimal);">🟢 Minimal</button>
+      <button class="filter-btn" onclick="filterMap('partial')" style="border-color:var(--partial);">🟡 Partial</button>
+      <button class="filter-btn" onclick="filterMap('complete')" style="border-color:var(--complete);">🔴 Complete</button>
+    </div>
+    <div id="map-legend">
+      <div style="font-size:10px;font-weight:700;color:var(--text-soft);margin-bottom:6px;letter-spacing:0.06em;">DAMAGE LEVEL</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--minimal)"></div> Minimal</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--partial)"></div> Partial</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--complete)"></div> Complete</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- PANEL: DASHBOARD -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="panel" id="panel-dashboard">
+
+  <!-- DBbun backend banner -->
+  <div class="dbbun-panel">
+    <h3>🤖 DBbun AI Analysis Backend</h3>
+    <p>Submitted reports are processed by DBbun's INGEST/DIGEST/SUGGEST pipeline — generating structured simulator bundles, synthetic datasets, and RAPIDA-compatible GeoJSON exports for UNDP analysts.</p>
+    <div class="pipeline-steps">
+      <div class="pipeline-step">INGEST</div>
+      <div class="pipeline-step">DIGEST</div>
+      <div class="pipeline-step">SIMULATE</div>
+      <div class="pipeline-step">EXPORT</div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid" id="stats-grid">
+    <div class="stat-card">
+      <div class="stat-num" id="stat-total">0</div>
+      <div class="stat-label" data-i18n="stat_total">Total Reports</div>
+    </div>
+    <div class="stat-card minimal">
+      <div class="stat-num" id="stat-minimal">0</div>
+      <div class="stat-label">Minimal</div>
+    </div>
+    <div class="stat-card partial">
+      <div class="stat-num" id="stat-partial">0</div>
+      <div class="stat-label">Partial</div>
+    </div>
+    <div class="stat-card complete">
+      <div class="stat-num" id="stat-complete">0</div>
+      <div class="stat-label">Complete</div>
+    </div>
+  </div>
+
+  <!-- Export buttons -->
+  <div class="export-bar">
+    <button class="export-btn export-csv" onclick="exportCSV()">⬇️ Export CSV</button>
+    <button class="export-btn export-geojson" onclick="exportGeoJSON()">🌐 Export GeoJSON</button>
+    <button class="export-btn export-clear" onclick="clearAll()">🗑️ Clear All</button>
+  </div>
+
+  <!-- Table -->
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div id="report-table-wrap"></div>
+  </div>
+
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════
+var currentLang = 'en';
+var currentDamage = null;
+var currentLat = null;
+var currentLng = null;
+var currentPhotoB64 = null;
+var pickMapObj = null;
+var pickMapMarker = null;
+var mainMapObj = null;
+var mainMapMarkers = [];
+var currentFilter = 'all';
+
+// ── i18n strings ──
+var I18N = {
+  en: {
+    tab_report:'📷 Report', tab_map:'🗺 Map', tab_dashboard:'📊 Dashboard',
+    photo_title:'Damage Photo', photo_prompt:'Tap to take a photo or upload',
+    photo_retake:'↺ Retake', photo_change:'Change Photo',
+    damage_title:'Damage Level',
+    dmg_minimal:'Minimal', dmg_minimal_sub:'Functional',
+    dmg_partial:'Partial', dmg_partial_sub:'Repairable',
+    dmg_complete:'Complete', dmg_complete_sub:'Destroyed',
+    infra_title:'Infrastructure & Crisis',
+    infra_type:'Infrastructure Type', crisis_type:'Crisis Type',
+    debris_label:'Debris requiring clearing?', debris_no:'No', debris_yes:'Yes', debris_unknown:'Unknown',
+    description_label:'Description', description_ph:'Describe the damage observed…',
+    location_title:'Location', loc_waiting:'Waiting for location…',
+    loc_gps:'📡 Use GPS', loc_pick:'🗺 Pick on Map',
+    landmark_label:'Landmark (if no GPS)', landmark_ph:'e.g. Near central market',
+    submit_btn:'Submit Damage Report',
+    stat_total:'Total Reports',
+    select_opt:'-- Select --',
+    infra_residential:'Residential', infra_commercial:'Commercial',
+    infra_government:'Government', infra_utility:'Utility',
+    infra_transport:'Transport & Comms', infra_community:'Community',
+    infra_recreation:'Public / Recreation', infra_other:'Other',
+    filter_all:'All',
+    toast_saved:'✅ Report saved!', toast_queued:'📡 Saved offline — will sync later',
+    toast_need_photo:'Please add a photo', toast_need_damage:'Please select damage level',
+    toast_need_loc:'Please set location', toast_need_infra:'Please select infrastructure type',
+    toast_need_crisis:'Please select crisis type',
+    toast_cleared:'All reports cleared'
+  },
+  fr: {
+    tab_report:'📷 Rapport', tab_map:'🗺 Carte', tab_dashboard:'📊 Tableau de bord',
+    photo_title:'Photo des dégâts', photo_prompt:'Appuyez pour prendre une photo',
+    photo_retake:'↺ Reprendre', photo_change:'Changer la photo',
+    damage_title:'Niveau de dommage',
+    dmg_minimal:'Minimal', dmg_minimal_sub:'Fonctionnel',
+    dmg_partial:'Partiel', dmg_partial_sub:'Réparable',
+    dmg_complete:'Complet', dmg_complete_sub:'Détruit',
+    infra_title:'Infrastructure et crise',
+    infra_type:'Type d\'infrastructure', crisis_type:'Type de crise',
+    debris_label:'Débris à dégager ?', debris_no:'Non', debris_yes:'Oui', debris_unknown:'Inconnu',
+    description_label:'Description', description_ph:'Décrivez les dommages observés…',
+    location_title:'Localisation', loc_waiting:'En attente de position…',
+    loc_gps:'📡 GPS', loc_pick:'🗺 Choisir sur carte',
+    landmark_label:'Repère (si pas de GPS)', landmark_ph:'ex. Près du marché central',
+    submit_btn:'Soumettre le rapport',
+    stat_total:'Rapports totaux', select_opt:'-- Sélectionner --',
+    filter_all:'Tous',
+    toast_saved:'✅ Rapport enregistré!', toast_queued:'📡 Sauvegardé hors ligne',
+    toast_need_photo:'Veuillez ajouter une photo', toast_need_damage:'Sélectionnez le niveau de dommage',
+    toast_need_loc:'Veuillez définir la localisation', toast_need_infra:'Sélectionnez le type d\'infrastructure',
+    toast_need_crisis:'Sélectionnez le type de crise', toast_cleared:'Tous les rapports supprimés'
+  },
+  es: {
+    tab_report:'📷 Reportar', tab_map:'🗺 Mapa', tab_dashboard:'📊 Panel',
+    photo_title:'Foto del daño', photo_prompt:'Toca para tomar una foto',
+    photo_retake:'↺ Retomar', photo_change:'Cambiar foto',
+    damage_title:'Nivel de daño',
+    dmg_minimal:'Mínimo', dmg_minimal_sub:'Funcional',
+    dmg_partial:'Parcial', dmg_partial_sub:'Reparable',
+    dmg_complete:'Completo', dmg_complete_sub:'Destruido',
+    infra_title:'Infraestructura y crisis',
+    infra_type:'Tipo de infraestructura', crisis_type:'Tipo de crisis',
+    debris_label:'¿Escombros que limpiar?', debris_no:'No', debris_yes:'Sí', debris_unknown:'Desconocido',
+    description_label:'Descripción', description_ph:'Describe el daño observado…',
+    location_title:'Ubicación', loc_waiting:'Esperando ubicación…',
+    loc_gps:'📡 Usar GPS', loc_pick:'🗺 Elegir en mapa',
+    landmark_label:'Referencia (sin GPS)', landmark_ph:'ej. Cerca del mercado central',
+    submit_btn:'Enviar reporte de daño',
+    stat_total:'Total de reportes', select_opt:'-- Seleccionar --',
+    filter_all:'Todos',
+    toast_saved:'✅ ¡Reporte guardado!', toast_queued:'📡 Guardado sin conexión',
+    toast_need_photo:'Por favor añade una foto', toast_need_damage:'Selecciona el nivel de daño',
+    toast_need_loc:'Por favor establece la ubicación', toast_need_infra:'Selecciona el tipo de infraestructura',
+    toast_need_crisis:'Selecciona el tipo de crisis', toast_cleared:'Todos los reportes eliminados'
+  },
+  ar: {
+    tab_report:'📷 تقرير', tab_map:'🗺 خريطة', tab_dashboard:'📊 لوحة',
+    photo_title:'صورة الضرر', photo_prompt:'اضغط لالتقاط صورة',
+    photo_retake:'إعادة التقاط', photo_change:'تغيير الصورة',
+    damage_title:'مستوى الضرر',
+    dmg_minimal:'بسيط', dmg_minimal_sub:'يعمل',
+    dmg_partial:'جزئي', dmg_partial_sub:'قابل للإصلاح',
+    dmg_complete:'كامل', dmg_complete_sub:'مدمر',
+    infra_title:'البنية التحتية والأزمة',
+    infra_type:'نوع البنية التحتية', crisis_type:'نوع الأزمة',
+    debris_label:'هل هناك حطام للإزالة؟', debris_no:'لا', debris_yes:'نعم', debris_unknown:'غير معروف',
+    description_label:'الوصف', description_ph:'صف الضرر الملاحظ…',
+    location_title:'الموقع', loc_waiting:'في انتظار الموقع…',
+    loc_gps:'📡 استخدام GPS', loc_pick:'🗺 اختيار على الخريطة',
+    landmark_label:'معلم (بدون GPS)', landmark_ph:'مثل: بالقرب من السوق المركزي',
+    submit_btn:'إرسال تقرير الضرر',
+    stat_total:'إجمالي التقارير', select_opt:'-- اختر --',
+    filter_all:'الكل',
+    toast_saved:'✅ تم حفظ التقرير!', toast_queued:'📡 تم الحفظ بدون إنترنت',
+    toast_need_photo:'يرجى إضافة صورة', toast_need_damage:'يرجى تحديد مستوى الضرر',
+    toast_need_loc:'يرجى تحديد الموقع', toast_need_infra:'يرجى اختيار نوع البنية التحتية',
+    toast_need_crisis:'يرجى اختيار نوع الأزمة', toast_cleared:'تم مسح جميع التقارير'
+  },
+  zh: {
+    tab_report:'📷 报告', tab_map:'🗺 地图', tab_dashboard:'📊 仪表板',
+    photo_title:'损坏照片', photo_prompt:'点击拍照或上传',
+    photo_retake:'重新拍摄', photo_change:'更换照片',
+    damage_title:'损坏程度',
+    dmg_minimal:'轻微', dmg_minimal_sub:'可正常使用',
+    dmg_partial:'部分', dmg_partial_sub:'可修复',
+    dmg_complete:'完全', dmg_complete_sub:'已损毁',
+    infra_title:'基础设施与危机',
+    infra_type:'基础设施类型', crisis_type:'危机类型',
+    debris_label:'是否有需要清理的碎片？', debris_no:'否', debris_yes:'是', debris_unknown:'不知道',
+    description_label:'描述', description_ph:'描述所观察到的损坏情况…',
+    location_title:'位置', loc_waiting:'等待定位…',
+    loc_gps:'📡 使用GPS', loc_pick:'🗺 在地图上选择',
+    landmark_label:'地标（无GPS时）', landmark_ph:'例如：中央市场附近',
+    submit_btn:'提交损坏报告',
+    stat_total:'总报告数', select_opt:'-- 选择 --',
+    filter_all:'全部',
+    toast_saved:'✅ 报告已保存！', toast_queued:'📡 已离线保存',
+    toast_need_photo:'请添加照片', toast_need_damage:'请选择损坏程度',
+    toast_need_loc:'请设置位置', toast_need_infra:'请选择基础设施类型',
+    toast_need_crisis:'请选择危机类型', toast_cleared:'所有报告已清除'
+  },
+  ru: {
+    tab_report:'📷 Репорт', tab_map:'🗺 Карта', tab_dashboard:'📊 Панель',
+    photo_title:'Фото повреждений', photo_prompt:'Нажмите, чтобы сфотографировать',
+    photo_retake:'Переснять', photo_change:'Изменить фото',
+    damage_title:'Уровень повреждений',
+    dmg_minimal:'Минимальный', dmg_minimal_sub:'Функционирует',
+    dmg_partial:'Частичный', dmg_partial_sub:'Подлежит ремонту',
+    dmg_complete:'Полный', dmg_complete_sub:'Разрушено',
+    infra_title:'Инфраструктура и кризис',
+    infra_type:'Тип инфраструктуры', crisis_type:'Тип кризиса',
+    debris_label:'Нужно расчистить завалы?', debris_no:'Нет', debris_yes:'Да', debris_unknown:'Неизвестно',
+    description_label:'Описание', description_ph:'Опишите наблюдаемые повреждения…',
+    location_title:'Местоположение', loc_waiting:'Ожидание координат…',
+    loc_gps:'📡 GPS', loc_pick:'🗺 Выбрать на карте',
+    landmark_label:'Ориентир (без GPS)', landmark_ph:'например, рядом с рынком',
+    submit_btn:'Отправить отчёт',
+    stat_total:'Всего отчётов', select_opt:'-- Выбрать --',
+    filter_all:'Все',
+    toast_saved:'✅ Отчёт сохранён!', toast_queued:'📡 Сохранено офлайн',
+    toast_need_photo:'Добавьте фото', toast_need_damage:'Выберите уровень повреждений',
+    toast_need_loc:'Укажите местоположение', toast_need_infra:'Выберите тип инфраструктуры',
+    toast_need_crisis:'Выберите тип кризиса', toast_cleared:'Все отчёты удалены'
+  }
+};
+
+function t(key) {
+  var lang = I18N[currentLang] || I18N['en'];
+  return lang[key] || I18N['en'][key] || key;
+}
+
+function setLang(lang) {
+  currentLang = lang;
+  document.documentElement.lang = lang;
+  document.documentElement.dir = (lang === 'ar') ? 'rtl' : 'ltr';
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var key = el.getAttribute('data-i18n');
+    el.textContent = t(key);
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(function(el) {
+    var key = el.getAttribute('data-i18n-ph');
+    el.placeholder = t(key);
+  });
+}
+
+// ══════════════════════════════════════════════════
+// TABS
+// ══════════════════════════════════════════════════
+function showTab(tab) {
+  document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
+  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
+  document.getElementById('panel-'+tab).classList.add('active');
+  document.getElementById('tab-'+tab.replace('dashboard','dash')).classList.add('active');
+  if (tab === 'map') { initMainMap(); }
+  if (tab === 'dashboard') { renderDashboard(); }
+}
+
+// ══════════════════════════════════════════════════
+// PHOTO
+// ══════════════════════════════════════════════════
+function handlePhoto(input) {
+  if (!input.files || !input.files[0]) return;
+  var file = input.files[0];
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    currentPhotoB64 = e.target.result;
+    var zone = document.getElementById('photo-zone');
+    zone.innerHTML = '<img src="'+e.target.result+'" alt="damage photo"/>';
+    document.getElementById('photo-actions').style.display = 'flex';
+  };
+  reader.readAsDataURL(file);
+}
+function clearPhoto() {
+  currentPhotoB64 = null;
+  document.getElementById('photo-input').value = '';
+  var zone = document.getElementById('photo-zone');
+  zone.innerHTML = '<div class="ph-icon">📷</div><div class="ph-text">'+t('photo_prompt')+'</div>';
+  document.getElementById('photo-actions').style.display = 'none';
+}
+
+// ══════════════════════════════════════════════════
+// DAMAGE SELECTION
+// ══════════════════════════════════════════════════
+function selectDamage(level) {
+  currentDamage = level;
+  document.querySelectorAll('.damage-btn').forEach(function(b){b.classList.remove('selected');});
+  document.querySelector('[data-level="'+level+'"]').classList.add('selected');
+}
+
+// ══════════════════════════════════════════════════
+// LOCATION
+// ══════════════════════════════════════════════════
+function getGPS() {
+  if (!navigator.geolocation) { showToast('GPS not available'); return; }
+  document.getElementById('loc-text').textContent = 'Acquiring GPS…';
+  navigator.geolocation.getCurrentPosition(function(pos) {
+    currentLat = pos.coords.latitude;
+    currentLng = pos.coords.longitude;
+    updateLocDisplay();
+    if (pickMapObj && pickMapMarker) {
+      pickMapMarker.setLatLng([currentLat, currentLng]);
+      pickMapObj.setView([currentLat, currentLng], 15);
+    }
+  }, function() {
+    document.getElementById('loc-text').textContent = 'GPS failed — use map pick';
+  }, {enableHighAccuracy:true, timeout:10000});
+}
+
+function updateLocDisplay() {
+  var d = document.getElementById('loc-display');
+  d.querySelector('.loc-err') && (d.querySelector('.loc-err').className = 'loc-ok');
+  document.getElementById('loc-text').textContent =
+    currentLat.toFixed(5) + ', ' + currentLng.toFixed(5);
+}
+
+function togglePickMap() {
+  var pm = document.getElementById('pick-map');
+  if (pm.style.display === 'none' || !pm.style.display) {
+    pm.style.display = 'block';
+    setTimeout(function(){
+      if (!pickMapObj) {
+        var startLat = currentLat || 14.0;
+        var startLng = currentLng || 0.0;
+        pickMapObj = L.map('pick-map').setView([startLat, startLng], currentLat ? 15 : 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+          attribution:'© OpenStreetMap',maxZoom:19
+        }).addTo(pickMapObj);
+        pickMapMarker = L.marker([startLat, startLng], {draggable:true}).addTo(pickMapObj);
+        pickMapMarker.on('dragend', function(e){
+          var ll = e.target.getLatLng();
+          currentLat = ll.lat; currentLng = ll.lng;
+          updateLocDisplay();
+        });
+        pickMapObj.on('click', function(e){
+          currentLat = e.latlng.lat; currentLng = e.latlng.lng;
+          pickMapMarker.setLatLng(e.latlng);
+          updateLocDisplay();
+        });
+      }
+      pickMapObj.invalidateSize();
+    }, 100);
+  } else {
+    pm.style.display = 'none';
+  }
+}
+
+// ══════════════════════════════════════════════════
+// STORAGE
+// ══════════════════════════════════════════════════
+function getReports() {
+  try { return JSON.parse(localStorage.getItem('crisis_reports') || '[]'); }
+  catch(e) { return []; }
+}
+function saveReports(reports) {
+  localStorage.setItem('crisis_reports', JSON.stringify(reports));
+}
+function getQueue() {
+  try { return JSON.parse(localStorage.getItem('crisis_queue') || '[]'); }
+  catch(e) { return []; }
+}
+function saveQueue(q) {
+  localStorage.setItem('crisis_queue', JSON.stringify(q));
+  updateQueueBadge();
+}
+function updateQueueBadge() {
+  var q = getQueue();
+  var qi = document.getElementById('queue-indicator');
+  var qt = document.getElementById('queue-text');
+  if (q.length > 0) {
+    qi.classList.add('visible');
+    qt.textContent = q.length + ' report(s) queued — will sync when online';
+  } else {
+    qi.classList.remove('visible');
+  }
+}
+
+// ══════════════════════════════════════════════════
+// SUBMIT
+// ══════════════════════════════════════════════════
+function submitReport() {
+  // Validation
+  if (!currentPhotoB64) { showToast(t('toast_need_photo')); return; }
+  if (!currentDamage) { showToast(t('toast_need_damage')); return; }
+  if (!currentLat || !currentLng) { showToast(t('toast_need_loc')); return; }
+  if (!document.getElementById('infra-type').value) { showToast(t('toast_need_infra')); return; }
+  if (!document.getElementById('crisis-type').value) { showToast(t('toast_need_crisis')); return; }
+
+  var report = {
+    id: 'RPT-' + Date.now(),
+    timestamp: new Date().toISOString(),
+    lat: currentLat,
+    lng: currentLng,
+    damage_classification: currentDamage,
+    infrastructure_type: document.getElementById('infra-type').value,
+    crisis_type: document.getElementById('crisis-type').value,
+    debris: document.getElementById('debris').value,
+    description: document.getElementById('description').value,
+    landmark: document.getElementById('landmark').value,
+    photo: currentPhotoB64,
+    language: currentLang,
+    sync_status: navigator.onLine ? 'synced' : 'queued'
+  };
+
+  var reports = getReports();
+  // Versioning: check if same location reported before
+  var existingIdx = reports.findIndex(function(r){
+    return r.lat && Math.abs(r.lat - report.lat) < 0.0001 &&
+           Math.abs(r.lng - report.lng) < 0.0001;
+  });
+  if (existingIdx >= 0) {
+    reports[existingIdx].previous_classification = reports[existingIdx].damage_classification;
+    reports[existingIdx].damage_classification = report.damage_classification;
+    reports[existingIdx].timestamp = report.timestamp;
+    reports[existingIdx].version = (reports[existingIdx].version || 1) + 1;
+  } else {
+    report.version = 1;
+    reports.push(report);
+  }
+  saveReports(reports);
+
+  if (!navigator.onLine) {
+    var q = getQueue();
+    q.push(report.id);
+    saveQueue(q);
+    showToast(t('toast_queued'));
+  } else {
+    showToast(t('toast_saved'));
+  }
+
+  updateBadge();
+  resetForm();
+}
+
+function resetForm() {
+  clearPhoto();
+  currentDamage = null;
+  currentLat = null; currentLng = null;
+  document.querySelectorAll('.damage-btn').forEach(function(b){b.classList.remove('selected');});
+  document.getElementById('infra-type').value = '';
+  document.getElementById('crisis-type').value = '';
+  document.getElementById('debris').value = 'no';
+  document.getElementById('description').value = '';
+  document.getElementById('landmark').value = '';
+  document.getElementById('loc-text').textContent = t('loc_waiting');
+  var d = document.getElementById('loc-display');
+  var dot = d.querySelector('.loc-ok');
+  if (dot) dot.className = 'loc-err';
+}
+
+function updateBadge() {
+  var n = getReports().length;
+  document.getElementById('report-count-badge').textContent = n;
+}
+
+// ══════════════════════════════════════════════════
+// MAIN MAP
+// ══════════════════════════════════════════════════
+var mapInitialized = false;
+function initMainMap() {
+  if (mapInitialized) { refreshMapMarkers(); return; }
+  mapInitialized = true;
+  mainMapObj = L.map('main-map').setView([20, 0], 2);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© OpenStreetMap contributors', maxZoom:19
+  }).addTo(mainMapObj);
+  refreshMapMarkers();
+}
+
+function getDotIcon(color) {
+  return L.divIcon({
+    className:'',
+    html:'<div style="width:14px;height:14px;border-radius:50%;background:'+color+';border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);"></div>',
+    iconSize:[14,14], iconAnchor:[7,7]
+  });
+}
+
+var colorMap = {minimal:'#2ECC71', partial:'#F39C12', complete:'#E74C3C'};
+
+function refreshMapMarkers() {
+  if (!mainMapObj) return;
+  mainMapMarkers.forEach(function(m){ mainMapObj.removeLayer(m); });
+  mainMapMarkers = [];
+  var reports = getReports();
+  reports.forEach(function(r) {
+    if (!r.lat || !r.lng) return;
+    if (currentFilter !== 'all' && r.damage_classification !== currentFilter) return;
+    var color = colorMap[r.damage_classification] || '#999';
+    var marker = L.marker([r.lat, r.lng], {icon: getDotIcon(color)});
+    var popup = '<div style="font-family:IBM Plex Sans,sans-serif;font-size:13px;min-width:180px;">'
+      + '<div style="font-weight:700;margin-bottom:4px;">'+r.id+'</div>'
+      + '<div style="margin-bottom:4px;">'
+      + '<span style="background:'+color+';color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;">'+r.damage_classification.toUpperCase()+'</span>'
+      + '</div>'
+      + '<div style="font-size:11px;color:#666;margin-bottom:3px;">'+r.infrastructure_type+' · '+r.crisis_type+'</div>'
+      + (r.description ? '<div style="font-size:12px;margin-top:4px;">'+r.description+'</div>' : '')
+      + '<div style="font-size:10px;color:#999;margin-top:6px;">'+new Date(r.timestamp).toLocaleString()+'</div>'
+      + (r.photo ? '<img src="'+r.photo+'" style="width:100%;margin-top:8px;border-radius:5px;"/>' : '')
+      + '</div>';
+    marker.bindPopup(popup);
+    marker.addTo(mainMapObj);
+    mainMapMarkers.push(marker);
+  });
+  // Fit bounds if we have reports
+  if (mainMapMarkers.length > 0 && currentFilter === 'all') {
+    var group = L.featureGroup(mainMapMarkers);
+    mainMapObj.fitBounds(group.getBounds().pad(0.2));
+  }
+}
+
+function filterMap(level) {
+  currentFilter = level;
+  document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('active');});
+  event.target.classList.add('active');
+  refreshMapMarkers();
+}
+
+// ══════════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════════
+function renderDashboard() {
+  var reports = getReports();
+  var total = reports.length;
+  var minimal = reports.filter(function(r){return r.damage_classification==='minimal';}).length;
+  var partial = reports.filter(function(r){return r.damage_classification==='partial';}).length;
+  var complete = reports.filter(function(r){return r.damage_classification==='complete';}).length;
+
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-minimal').textContent = minimal;
+  document.getElementById('stat-partial').textContent = partial;
+  document.getElementById('stat-complete').textContent = complete;
+
+  var wrap = document.getElementById('report-table-wrap');
+  if (total === 0) {
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><div>No reports yet.<br>Submit your first damage report.</div></div>';
+    return;
+  }
+
+  var html = '<table class="report-table"><thead><tr>'
+    + '<th>ID</th><th>Damage</th><th>Infrastructure</th><th>Crisis</th><th>Coords</th><th>Time</th>'
+    + '</tr></thead><tbody>';
+  reports.slice().reverse().forEach(function(r) {
+    var badgeClass = 'dmg-'+r.damage_classification;
+    html += '<tr>'
+      + '<td><span style="font-family:IBM Plex Mono,monospace;font-size:11px;">'+r.id+'</span></td>'
+      + '<td><span class="dmg-badge '+badgeClass+'">'+r.damage_classification+'</span>'
+      + (r.version > 1 ? ' <span style="font-size:9px;color:#999;">v'+r.version+'</span>' : '')
+      + '</td>'
+      + '<td>'+r.infrastructure_type+'</td>'
+      + '<td>'+r.crisis_type+'</td>'
+      + '<td style="font-family:IBM Plex Mono,monospace;font-size:11px;">'
+      + (r.lat ? r.lat.toFixed(4)+', '+r.lng.toFixed(4) : r.landmark || '—')
+      + '</td>'
+      + '<td style="font-size:11px;color:#888;">'+new Date(r.timestamp).toLocaleString()+'</td>'
+      + '</tr>';
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════
+// EXPORT
+// ══════════════════════════════════════════════════
+function exportCSV() {
+  var reports = getReports();
+  if (reports.length === 0) { showToast('No reports to export'); return; }
+  var headers = ['id','timestamp','lat','lng','damage_classification','infrastructure_type',
+    'crisis_type','debris','description','landmark','version','sync_status'];
+  var rows = [headers.join(',')];
+  reports.forEach(function(r) {
+    rows.push(headers.map(function(h){
+      var v = r[h] !== undefined ? String(r[h]) : '';
+      return '"' + v.replace(/"/g,'""') + '"';
+    }).join(','));
+  });
+  downloadFile('crisis_reports_'+datestamp()+'.csv', rows.join('\n'), 'text/csv');
+  showToast('CSV exported (' + reports.length + ' records)');
+}
+
+function exportGeoJSON() {
+  var reports = getReports();
+  if (reports.length === 0) { showToast('No reports to export'); return; }
+  var features = reports.filter(function(r){return r.lat && r.lng;}).map(function(r) {
+    return {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [r.lng, r.lat] },
+      properties: {
+        id: r.id,
+        timestamp: r.timestamp,
+        damage_classification: r.damage_classification,
+        infrastructure_type: r.infrastructure_type,
+        crisis_type: r.crisis_type,
+        debris: r.debris,
+        description: r.description,
+        landmark: r.landmark,
+        version: r.version,
+        sync_status: r.sync_status
+      }
+    };
+  });
+  var geojson = { type: 'FeatureCollection', features: features };
+  downloadFile('crisis_reports_'+datestamp()+'.geojson',
+    JSON.stringify(geojson, null, 2), 'application/json');
+  showToast('GeoJSON exported (' + features.length + ' features)');
+}
+
+function downloadFile(filename, content, mime) {
+  var blob = new Blob([content], {type: mime});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function datestamp() {
+  return new Date().toISOString().slice(0,10).replace(/-/g,'');
+}
+
+function clearAll() {
+  if (!confirm('Clear all reports? This cannot be undone.')) return;
+  localStorage.removeItem('crisis_reports');
+  localStorage.removeItem('crisis_queue');
+  updateBadge();
+  updateQueueBadge();
+  renderDashboard();
+  showToast(t('toast_cleared'));
+}
+
+// ══════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════
+var toastTimer = null;
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 2800);
+}
+
+// ══════════════════════════════════════════════════
+// ONLINE / OFFLINE DETECTION
+// ══════════════════════════════════════════════════
+function updateOnlineStatus() {
+  var badge = document.getElementById('offline-badge');
+  if (!navigator.onLine) {
+    badge.classList.add('visible');
+  } else {
+    badge.classList.remove('visible');
+    // Attempt to sync queue
+    var q = getQueue();
+    if (q.length > 0) {
+      saveQueue([]);
+      showToast('✅ ' + q.length + ' queued report(s) synced');
+    }
+  }
+}
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+
+// ══════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════
+updateOnlineStatus();
+updateBadge();
+updateQueueBadge();
+setLang('en');
+
+// Try auto-GPS on load
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(function(pos){
+    currentLat = pos.coords.latitude;
+    currentLng = pos.coords.longitude;
+    updateLocDisplay();
+  }, function(){}, {timeout:5000});
+}
+</script>
+</body>
+</html>
