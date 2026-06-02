@@ -987,6 +987,7 @@ function updateQueueBadge() {
 // SUBMIT
 // ══════════════════════════════════════════════════
 function submitReport() {
+  alert('DEBUG: photo='+!!currentPhotoB64+' damage='+currentDamage+' lat='+currentLat+' lng='+currentLng);
   // Validation with visible alerts on mobile
   if (!currentPhotoB64) { alert(t('toast_need_photo')); return; }
   if (!currentDamage) { alert(t('toast_need_damage')); return; }
