@@ -872,9 +872,11 @@ function handlePhoto(input) {
   reader.onload = function(e) {
     currentPhotoB64 = e.target.result;
     var zone = document.getElementById('photo-zone');
-    zone.innerHTML = '<img src="'+e.target.result+'" alt="damage photo"/>';
+    zone.innerHTML = '<img src="'+e.target.result+'" alt="damage photo" style="width:100%;height:200px;object-fit:cover;border-radius:8px;"/>';
     document.getElementById('photo-actions').style.display = 'flex';
+    showToast('📷 Photo added');
   };
+  reader.onerror = function() { showToast('Photo read failed — try again'); };
   reader.readAsDataURL(file);
 }
 function clearPhoto() {
@@ -985,12 +987,12 @@ function updateQueueBadge() {
 // SUBMIT
 // ══════════════════════════════════════════════════
 function submitReport() {
-  // Validation
-  if (!currentPhotoB64) { showToast(t('toast_need_photo')); return; }
-  if (!currentDamage) { showToast(t('toast_need_damage')); return; }
-  if (!currentLat || !currentLng) { showToast(t('toast_need_loc')); return; }
-  if (!document.getElementById('infra-type').value) { showToast(t('toast_need_infra')); return; }
-  if (!document.getElementById('crisis-type').value) { showToast(t('toast_need_crisis')); return; }
+  // Validation with visible alerts on mobile
+  if (!currentPhotoB64) { alert(t('toast_need_photo')); return; }
+  if (!currentDamage) { alert(t('toast_need_damage')); return; }
+  if (!currentLat || !currentLng) { alert(t('toast_need_loc')); return; }
+  if (!document.getElementById('infra-type').value) { alert(t('toast_need_infra')); return; }
+  if (!document.getElementById('crisis-type').value) { alert(t('toast_need_crisis')); return; }
 
   var report = {
     id: 'RPT-' + Date.now(),
